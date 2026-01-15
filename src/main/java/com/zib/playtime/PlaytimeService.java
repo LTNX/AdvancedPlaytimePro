@@ -1,11 +1,14 @@
 package com.zib.playtime;
 
 import com.zib.playtime.database.DatabaseManager;
+import com.zib.playtime.listeners.SessionListener;
+
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class PlaytimeService {
 
@@ -31,39 +34,90 @@ public class PlaytimeService {
     }
 
     public long getTotalPlaytime(String uuid) {
-        try (Connection conn = db.getConnection()) {
-            PreparedStatement ps = conn.prepareStatement("SELECT SUM(duration) FROM playtime_sessions WHERE uuid = ?");
-            ps.setString(1, uuid);
-            ResultSet rs = ps.executeQuery();
-            if (rs.next()) return rs.getLong(1);
-        } catch (SQLException e) { e.printStackTrace(); }
-        return 0;
+        return getPlaytime(uuid, "all");
     }
 
+    public long getPlaytime(String uuid, String type) {
+        String dateFilter = getDateFilter(type);
+        String query = "SELECT SUM(duration) FROM playtime_sessions WHERE uuid = ? " + dateFilter;
+
+        long dbTime = 0;
+        try (Connection conn = db.getConnection()) {
+            PreparedStatement ps = conn.prepareStatement(query);
+            ps.setString(1, uuid);
+            ResultSet rs = ps.executeQuery();
+            if (rs.next()) dbTime = rs.getLong(1);
+        } catch (SQLException e) { e.printStackTrace(); }
+
+        try {
+            dbTime += SessionListener.getCurrentSession(UUID.fromString(uuid));
+        } catch (Exception ignored) {}
+
+        return dbTime;
+    }
+
+    public int getRank(String uuid, String type) {
+        Map<String, Long> all = getTopPlayers(type, 1000);
+        int rank = 1;
+        long myTime = getPlaytime(uuid, type);
+
+        for (Long time : all.values()) {
+            if (time > myTime) {
+                rank++;
+            }
+        }
+        return rank;
+    }
 
     public Map<String, Long> getTopPlayers(String type) {
-        Map<String, Long> top = new LinkedHashMap<>();
+        return getTopPlayers(type, 10);
+    }
 
-        String dateFilter = "";
-        if (type.equalsIgnoreCase("daily")) {
-            dateFilter = "WHERE session_date = date('now') ";
-        } else if (type.equalsIgnoreCase("weekly")) {
-            dateFilter = "WHERE session_date >= date('now', '-7 days') ";
-        } else if (type.equalsIgnoreCase("monthly")) {
-            dateFilter = "WHERE session_date >= date('now', '-1 month') ";
-        }
+    public Map<String, Long> getTopPlayers(String type, int limit) {
+        Map<String, Long> tempMap = new HashMap<>();
 
-        String query = "SELECT username, SUM(duration) as total FROM playtime_sessions " +
-                dateFilter +
-                "GROUP BY username ORDER BY total DESC LIMIT 10";
+        String dateFilter = getDateFilter(type);
+        String where = dateFilter.isEmpty() ? "" : "WHERE " + dateFilter.substring(4) + " ";
+
+        String query = "SELECT uuid, username, SUM(duration) as total FROM playtime_sessions " +
+                where +
+                "GROUP BY uuid";
 
         try (Connection conn = db.getConnection()) {
             PreparedStatement ps = conn.prepareStatement(query);
             ResultSet rs = ps.executeQuery();
             while (rs.next()) {
-                top.put(rs.getString("username"), rs.getLong("total"));
+                String uuid = rs.getString("uuid");
+                String name = rs.getString("username");
+                long total = rs.getLong("total");
+
+                try {
+                    total += SessionListener.getCurrentSession(UUID.fromString(uuid));
+                } catch (Exception ignored) {}
+
+                tempMap.put(name, total);
             }
         } catch (SQLException e) { e.printStackTrace(); }
-        return top;
+
+        return tempMap.entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                .limit(limit)
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        Map.Entry::getValue,
+                        (e1, e2) -> e1,
+                        LinkedHashMap::new
+                ));
+    }
+
+    private String getDateFilter(String type) {
+        if (type.equalsIgnoreCase("daily")) {
+            return "AND session_date = date('now') ";
+        } else if (type.equalsIgnoreCase("weekly")) {
+            return "AND session_date >= date('now', '-7 days') ";
+        } else if (type.equalsIgnoreCase("monthly")) {
+            return "AND session_date >= date('now', '-1 month') ";
+        }
+        return "";
     }
 }

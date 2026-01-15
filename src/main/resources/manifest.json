@@ -1,7 +1,7 @@
 {
   "Group": "Playtime",
   "Name": "Playtime",
-  "Version": "1.0.0",
+  "Version": "1.1.0",
   "Description": "Advanced playtime tracking with leaderboards, database support, and live stats.",
   "Authors": [
     {
@@ -13,5 +13,6 @@
   "ServerVersion": "*",
   "Dependencies": {},
   "OptionalDependencies": {},
-  "DisabledByDefault": false
+  "DisabledByDefault": false,
+  "IncludesAssetPack": true
 }

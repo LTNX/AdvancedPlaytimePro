@@ -7,11 +7,13 @@ import com.hypixel.hytale.server.core.command.system.CommandContext;
 import com.hypixel.hytale.server.core.command.system.arguments.system.RequiredArg;
 import com.hypixel.hytale.server.core.command.system.arguments.types.ArgTypes;
 import com.hypixel.hytale.server.core.command.system.basecommands.AbstractPlayerCommand;
+import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.zib.playtime.Playtime;
 import com.zib.playtime.config.PlaytimeConfig;
+import com.zib.playtime.gui.PlaytimeLeaderboardGui;
 import com.zib.playtime.listeners.SessionListener;
 
 import java.util.*;
@@ -28,7 +30,6 @@ public class PlaytimeCommand extends AbstractPlayerCommand {
         }
 
         addUsageVariant(new ActionCommand(name));
-
         addUsageVariant(new TopPeriodCommand(name));
     }
 
@@ -38,7 +39,7 @@ public class PlaytimeCommand extends AbstractPlayerCommand {
     @Override
     protected void execute(CommandContext ctx, Store<EntityStore> store, Ref<EntityStore> ref,
                            PlayerRef player, World world) {
-        long total = SessionListener.getLiveTotalTime(player.getUuid());
+        long total = Playtime.get().getService().getTotalPlaytime(player.getUuid().toString());
         String msg = Playtime.get().getConfigManager().getConfig().messages.selfCheck
                 .replace("%time%", format(total))
                 .replace("%player%", player.getUsername());
@@ -80,7 +81,6 @@ public class PlaytimeCommand extends AbstractPlayerCommand {
         return hours + "h " + minutes + "m";
     }
 
-
     private static void showTop(CommandContext ctx, PlayerRef player, String inputArg) {
         PlaytimeConfig cfg = Playtime.get().getConfigManager().getConfig();
         PlaytimeConfig.PeriodSettings p = cfg.periods;
@@ -99,16 +99,7 @@ public class PlaytimeCommand extends AbstractPlayerCommand {
             return;
         }
 
-        Map<String, Long> leaderboard = new HashMap<>(Playtime.get().getService().getTopPlayers(mode));
-
-        if (mode.equals("all") || mode.equals("daily")) {
-            leaderboard.put(player.getUsername(), SessionListener.getLiveTotalTime(player.getUuid()));
-        }
-
-        List<Map.Entry<String, Long>> sorted = leaderboard.entrySet().stream()
-                .sorted((a, b) -> b.getValue().compareTo(a.getValue()))
-                .limit(10)
-                .collect(Collectors.toList());
+        Map<String, Long> sorted = Playtime.get().getService().getTopPlayers(mode);
 
         ctx.sendMessage(color(cfg.messages.leaderboardHeader.replace("%period_name%", displayName)));
 
@@ -118,7 +109,7 @@ public class PlaytimeCommand extends AbstractPlayerCommand {
         }
 
         int rank = 1;
-        for (Map.Entry<String, Long> entry : sorted) {
+        for (Map.Entry<String, Long> entry : sorted.entrySet()) {
             String line = cfg.messages.leaderboardEntry
                     .replace("%rank%", String.valueOf(rank))
                     .replace("%player%", entry.getKey())
@@ -145,14 +136,12 @@ public class PlaytimeCommand extends AbstractPlayerCommand {
         }
     }
 
-
     private static class ActionCommand extends AbstractPlayerCommand {
         private final RequiredArg<String> actionArg;
 
         public ActionCommand(String name) {
             super(name);
-
-            this.actionArg = withRequiredArg("action", "top|reload", ArgTypes.STRING);
+            this.actionArg = withRequiredArg("action", "menu|top|reload", ArgTypes.STRING);
         }
 
         @Override protected boolean canGeneratePermission() { return false; }
@@ -162,17 +151,22 @@ public class PlaytimeCommand extends AbstractPlayerCommand {
             String arg = ctx.get(actionArg);
             PlaytimeConfig.PeriodSettings periods = Playtime.get().getConfigManager().getConfig().periods;
 
+            if (arg.equalsIgnoreCase("menu") || arg.equalsIgnoreCase("gui")) {
+                if (ctx.sender() instanceof Player senderPlayer) {
+                    senderPlayer.getPageManager().openCustomPage(ref, store, new PlaytimeLeaderboardGui(player));
+                }
+                return;
+            }
+
             if (arg.equalsIgnoreCase(periods.reload)) {
                 doReload(ctx);
                 return;
             }
 
-
             if (arg.equalsIgnoreCase("top")) {
                 showTop(ctx, player, periods.all);
                 return;
             }
-
 
             if (arg.equalsIgnoreCase(periods.daily) || arg.equalsIgnoreCase(periods.weekly) ||
                     arg.equalsIgnoreCase(periods.monthly) || arg.equalsIgnoreCase(periods.all)) {
@@ -180,7 +174,7 @@ public class PlaytimeCommand extends AbstractPlayerCommand {
                 return;
             }
 
-            ctx.sendMessage(color("&cUnknown command. Usage: /playtime top [period] OR /playtime reload"));
+            ctx.sendMessage(color("&cUnknown command. Usage: /playtime [menu|top|reload]"));
         }
     }
 

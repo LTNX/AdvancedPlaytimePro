@@ -1,0 +1,87 @@
+$C = "../Common.ui";
+$C.@PageOverlay {
+  $C.@Container {
+    Anchor: (Width: 650, Height: 669);
+    #Title {
+      Group {
+        $C.@Title #TitleText {
+          @Text = "LEADERBOARD";
+        }
+      }
+    }
+    #Content {
+      LayoutMode: Left;
+      Group #Main {
+        LayoutMode: Top;
+        Group {
+          LayoutMode: Center;
+          Anchor: (Height: 50, Left: 0, Right: 0);
+          Padding: (Bottom: 10);
+          Group {
+            Anchor: (Width: 140);
+            Padding: (Right: 5);
+            $C.@SecondaryTextButton #BtnAll {
+              @Text = "ALL TIME";
+              Anchor: (Full: 0);
+            }
+          }
+          Group {
+            Anchor: (Width: 140);
+            Padding: (Right: 5);
+            $C.@SecondaryTextButton #BtnDaily {
+              @Text = "DAILY";
+              Anchor: (Full: 0);
+            }
+          }
+          Group {
+            Anchor: (Width: 140);
+            Padding: (Right: 5);
+            $C.@SecondaryTextButton #BtnWeekly {
+              @Text = "WEEKLY";
+              Anchor: (Full: 0);
+            }
+          }
+          Group {
+            Anchor: (Width: 140);
+            $C.@SecondaryTextButton #BtnMonthly {
+              @Text = "MONTHLY";
+              Anchor: (Full: 0);
+            }
+          }
+        }
+        Group #LeaderboardList {
+          Anchor: (Width: 630);
+          FlexWeight: 1;
+          LayoutMode: TopScrolling;
+          Padding: (Left: 4, Bottom: 10);
+          ScrollbarStyle: $C.@DefaultScrollbarStyle;
+          Group #ListContainer {
+            LayoutMode: Top;
+          }
+        }
+        Group #SelfStats {
+          Anchor: (Height: 40, Left: 0, Right: 0);
+          Background: $C.@InputBoxBackground;
+          LayoutMode: Center;
+          Padding: (Left: 20, Right: 20);
+
+          Label #FooterLabel {
+            Text: "YOUR STATS:";
+            Style: (FontSize: 14, TextColor: #AAAAAA, RenderBold: true, VerticalAlignment: Center);
+            Padding: (Right: 15);
+          }
+          Label #SelfRank {
+            Text: "Rank: #?";
+            Style: (FontSize: 16, TextColor: #FFFFFF, RenderBold: true, VerticalAlignment: Center);
+            Padding: (Right: 15);
+          }
+          Label #SelfTime {
+            Text: "Time: 0h";
+            Style: (FontSize: 16, TextColor: #FFD700, RenderBold: true, VerticalAlignment: Center);
+          }
+        }
+      }
+    }
+  }
+}
+$C.@BackButton {}

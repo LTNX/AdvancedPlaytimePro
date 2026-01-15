@@ -1,0 +1,55 @@
+$C = "../Common.ui";
+Group {
+  LayoutMode: Left;
+  Anchor: (Bottom: 5);
+  Background: $C.@InputBoxBackground;
+  Padding: (Top: 4, Bottom: 4);
+
+  Group {
+    LayoutMode: Top;
+    FlexWeight: 1;
+
+    Group {
+      LayoutMode: Left;
+
+      Label #Rank {
+        Style: (
+          FontSize: 12,
+          RenderBold: true,
+          TextColor: #ffffff
+        );
+        Anchor: (Left: 10, Top: 4, Bottom: 2);
+        // Padding controls the size of the box now
+        Padding: (Left: 6, Right: 6, Top: 2, Bottom: 2);
+
+        Background: (Color: #bc6e14);
+
+        OutlineColor: #ec8a1a;
+        OutlineSize: 1.5;
+
+    }
+
+      Label #Time {
+        Style: (
+          FontSize: 14,
+          RenderBold: true,
+          TextColor: #FFD700
+        );
+        Anchor: (Left: 10, Top: 2);
+        Padding: (Right: 5);
+      }
+    }
+
+    Label #Name {
+      Style: (
+        FontSize: 14,
+        RenderBold: false,
+        TextColor: #ffffff,
+        Wrap: true
+      );
+      Anchor: (Left: 10);
+      Padding: (Right: 5);
+      Overscroll: true;
+    }
+  }
+}

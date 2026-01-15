@@ -9,6 +9,7 @@ public class PlaytimeConfig {
     public CommandSettings command = new CommandSettings();
     public PeriodSettings periods = new PeriodSettings();
     public MessageSettings messages = new MessageSettings();
+    public GuiSettings gui = new GuiSettings();
 
     public static class DatabaseSettings {
         public String type = "sqlite";
@@ -47,6 +48,17 @@ public class PlaytimeConfig {
         public String reloadFailed = "&cFailed to reload config. Check console.";
 
         public String errorInvalidPeriod = "&cInvalid period. Use: %valid_periods%";
-        public String errorConsole = "&cThis command can only be executed by players.";
+        public String errorConsole = "&cPlayers only.";
+    }
+
+    public static class GuiSettings {
+        public String title = "LEADERBOARD";
+        public String buttonAll = "ALL TIME";
+        public String buttonDaily = "DAILY";
+        public String buttonWeekly = "WEEKLY";
+        public String buttonMonthly = "MONTHLY";
+        public String footerTitle = "YOUR STATS:";
+        public String rankPrefix = "Rank: #";
+        public String timePrefix = "Time: ";
     }
 }

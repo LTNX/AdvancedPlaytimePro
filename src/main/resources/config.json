@@ -41,5 +41,17 @@
     "reloadFailed": "&cFailed to reload config. Check console.",
     "errorInvalidPeriod": "&cInvalid period. Use: %valid_periods%",
     "errorConsole": "&cPlayers only."
+  },
+
+  "_comment_gui": "--- GUI Settings --- | Customize the text inside the leaderboard menu.",
+  "gui": {
+    "title": "LEADERBOARD",
+    "buttonAll": "ALL TIME",
+    "buttonDaily": "DAILY",
+    "buttonWeekly": "WEEKLY",
+    "buttonMonthly": "MONTHLY",
+    "footerTitle": "YOUR STATS:",
+    "rankPrefix": "Rank: #",
+    "timePrefix": "Time: "
   }
 }
