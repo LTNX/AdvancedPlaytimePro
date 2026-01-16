@@ -36,22 +36,18 @@ public class Playtime extends JavaPlugin {
         File dataFolder = new File("mods/Playtime");
         if (!dataFolder.exists()) dataFolder.mkdirs();
 
-        // 1. Config
         configManager = new ConfigManager(dataFolder);
         configManager.init();
         PlaytimeConfig cfg = configManager.getConfig();
 
-        // 2. Database
         db = new DatabaseManager(dataFolder);
         db.init();
         service = new PlaytimeService(db);
 
-        // 3. Command Registration
         String cmdName = cfg.command.name;
         String[] aliases = cfg.command.aliases.toArray(new String[0]);
         this.getCommandRegistry().registerCommand(new PlaytimeCommand(cmdName, aliases));
 
-        // 4. Events
         this.getEventRegistry().registerGlobal(PlayerConnectEvent.class, SessionListener::onJoin);
         this.getEventRegistry().registerGlobal(PlayerDisconnectEvent.class, SessionListener::onQuit);
 
@@ -60,6 +56,7 @@ public class Playtime extends JavaPlugin {
 
     @Override
     protected void shutdown() {
+        SessionListener.saveAllSessions();
         if (db != null) db.close();
     }
 

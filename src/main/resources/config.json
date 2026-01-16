@@ -17,7 +17,8 @@
     "aliases": [
       "pt",
       "stat"
-    ]
+    ],
+    "topStyle": "text"
   },
 
   "_comment_periods": "--- Translation (Periods) --- | Customize the arguments for /playtime top <arg>",
@@ -40,7 +41,8 @@
     "reloadNoPermission": "&cYou do not have permission to reload.",
     "reloadFailed": "&cFailed to reload config. Check console.",
     "errorInvalidPeriod": "&cInvalid period. Use: %valid_periods%",
-    "errorConsole": "&cPlayers only."
+    "errorConsole": "&cPlayers only.",
+    "noPermission": "&cYou do not have permission to use this command."
   },
 
   "_comment_gui": "--- GUI Settings --- | Customize the text inside the leaderboard menu.",

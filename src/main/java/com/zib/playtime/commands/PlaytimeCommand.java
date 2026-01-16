@@ -14,11 +14,9 @@ import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.zib.playtime.Playtime;
 import com.zib.playtime.config.PlaytimeConfig;
 import com.zib.playtime.gui.PlaytimeLeaderboardGui;
-import com.zib.playtime.listeners.SessionListener;
 
 import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 public class PlaytimeCommand extends AbstractPlayerCommand {
 
@@ -39,6 +37,11 @@ public class PlaytimeCommand extends AbstractPlayerCommand {
     @Override
     protected void execute(CommandContext ctx, Store<EntityStore> store, Ref<EntityStore> ref,
                            PlayerRef player, World world) {
+        if (!ctx.sender().hasPermission("playtime.check")) {
+            ctx.sendMessage(color(Playtime.get().getConfigManager().getConfig().messages.noPermission));
+            return;
+        }
+
         long total = Playtime.get().getService().getTotalPlaytime(player.getUuid().toString());
         String msg = Playtime.get().getConfigManager().getConfig().messages.selfCheck
                 .replace("%time%", format(total))
@@ -82,6 +85,11 @@ public class PlaytimeCommand extends AbstractPlayerCommand {
     }
 
     private static void showTop(CommandContext ctx, PlayerRef player, String inputArg) {
+        if (!ctx.sender().hasPermission("playtime.top")) {
+            ctx.sendMessage(color(Playtime.get().getConfigManager().getConfig().messages.noPermission));
+            return;
+        }
+
         PlaytimeConfig cfg = Playtime.get().getConfigManager().getConfig();
         PlaytimeConfig.PeriodSettings p = cfg.periods;
 
@@ -149,9 +157,14 @@ public class PlaytimeCommand extends AbstractPlayerCommand {
         @Override
         protected void execute(CommandContext ctx, Store<EntityStore> store, Ref<EntityStore> ref, PlayerRef player, World world) {
             String arg = ctx.get(actionArg);
-            PlaytimeConfig.PeriodSettings periods = Playtime.get().getConfigManager().getConfig().periods;
+            PlaytimeConfig config = Playtime.get().getConfigManager().getConfig();
+            PlaytimeConfig.PeriodSettings periods = config.periods;
 
             if (arg.equalsIgnoreCase("menu") || arg.equalsIgnoreCase("gui")) {
+                if (!ctx.sender().hasPermission("playtime.gui")) {
+                    ctx.sendMessage(color(config.messages.noPermission));
+                    return;
+                }
                 if (ctx.sender() instanceof Player senderPlayer) {
                     senderPlayer.getPageManager().openCustomPage(ref, store, new PlaytimeLeaderboardGui(player));
                 }
@@ -164,7 +177,17 @@ public class PlaytimeCommand extends AbstractPlayerCommand {
             }
 
             if (arg.equalsIgnoreCase("top")) {
-                showTop(ctx, player, periods.all);
+                if (!ctx.sender().hasPermission("playtime.top")) {
+                    ctx.sendMessage(color(config.messages.noPermission));
+                    return;
+                }
+                if (config.command.topStyle.equalsIgnoreCase("gui") || config.command.topStyle.equalsIgnoreCase("menu")) {
+                    if (ctx.sender() instanceof Player senderPlayer) {
+                        senderPlayer.getPageManager().openCustomPage(ref, store, new PlaytimeLeaderboardGui(player));
+                    }
+                } else {
+                    showTop(ctx, player, periods.all);
+                }
                 return;
             }
 

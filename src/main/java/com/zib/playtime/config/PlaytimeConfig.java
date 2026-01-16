@@ -11,6 +11,17 @@ public class PlaytimeConfig {
     public MessageSettings messages = new MessageSettings();
     public GuiSettings gui = new GuiSettings();
 
+    public void setDefaults() {
+        if (database == null) database = new DatabaseSettings();
+        if (command == null) command = new CommandSettings();
+        if (periods == null) periods = new PeriodSettings();
+        if (messages == null) messages = new MessageSettings();
+        if (gui == null) gui = new GuiSettings();
+
+        if (command.topStyle == null) command.topStyle = "text";
+        if (command.aliases == null) command.aliases = Arrays.asList("pt", "play", "time");
+    }
+
     public static class DatabaseSettings {
         public String type = "sqlite";
         public String host = "localhost";
@@ -25,6 +36,7 @@ public class PlaytimeConfig {
         public String name = "playtime";
         public String description = "Check your playtime stats";
         public List<String> aliases = Arrays.asList("pt", "play", "time");
+        public String topStyle = "text";
     }
 
     public static class PeriodSettings {
@@ -49,6 +61,7 @@ public class PlaytimeConfig {
 
         public String errorInvalidPeriod = "&cInvalid period. Use: %valid_periods%";
         public String errorConsole = "&cPlayers only.";
+        public String noPermission = "&cYou do not have permission to use this command.";
     }
 
     public static class GuiSettings {

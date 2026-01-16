@@ -50,10 +50,15 @@ public class ConfigManager {
     public void load() {
         try (Reader reader = new FileReader(configFile)) {
             config = gson.fromJson(reader, PlaytimeConfig.class);
+            if (config == null) config = new PlaytimeConfig();
+            config.setDefaults();
+            save();
             logger.info("Configuration loaded!");
         } catch (IOException e) {
             logger.error("Failed to load config.json", e);
             config = new PlaytimeConfig();
+            config.setDefaults();
+            save();
         }
     }
 
