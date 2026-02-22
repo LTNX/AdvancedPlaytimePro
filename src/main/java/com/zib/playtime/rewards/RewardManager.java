@@ -18,11 +18,15 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class RewardManager {
 
     private final DatabaseManager db;
     private final Logger logger = LoggerFactory.getLogger("Playtime-Rewards");
+
+    // Cache para evitar dar la misma recompensa dos veces en la misma sesion
+    private final ConcurrentHashMap<String, Boolean> processingCache = new ConcurrentHashMap<>();
 
     public RewardManager(DatabaseManager db) {
         this.db = db;
@@ -32,7 +36,15 @@ public class RewardManager {
     public void checkRewards() {
         List<PlayerRef> players = new ArrayList<>(Universe.get().getPlayers());
         for (PlayerRef player : players) {
-            processPlayer(player);
+            // Evitar procesar el mismo jugador dos veces simultaneamente
+            String key = player.getUuid().toString();
+            if (processingCache.putIfAbsent(key, true) == null) {
+                try {
+                    processPlayer(player);
+                } finally {
+                    processingCache.remove(key);
+                }
+            }
         }
     }
 
@@ -42,23 +54,27 @@ public class RewardManager {
         String uuid = player.getUuid().toString();
 
         for (Reward reward : config.rewards) {
-            long playTime = PlaytimeAPI.get().getPlaytime(player.getUuid(), reward.period);
+            try {
+                long playTime = PlaytimeAPI.get().getPlaytime(player.getUuid(), reward.period);
 
-            if (playTime >= reward.timeRequirement) {
-                if (!db.hasClaimedReward(uuid, reward)) {
-                    giveReward(player, reward);
+                if (playTime >= reward.timeRequirement) {
+                    if (!db.hasClaimedReward(uuid, reward)) {
+                        giveReward(player, reward);
+                    }
                 }
+            } catch (Exception e) {
+                logger.error("Error procesando recompensa [" + reward.id + "] para " + player.getUsername(), e);
             }
         }
     }
 
     @SuppressWarnings("deprecation")
     private void giveReward(PlayerRef player, Reward reward) {
-        // 1. Log claim to database
+        // Registrar en BD primero para evitar doble entrega
         db.logRewardClaim(player.getUuid().toString(), reward.id);
 
         final String username = player.getUsername();
-        logger.info("Granting reward [" + reward.id + "] to " + username);
+        logger.info("Otorgando recompensa [" + reward.id + "] a " + username);
 
         World world = Universe.get().getWorld(player.getWorldUuid());
         if (world == null) {
@@ -66,7 +82,8 @@ public class RewardManager {
         }
 
         if (world != null) {
-            world.execute(() -> {
+            final World finalWorld = world;
+            finalWorld.execute(() -> {
                 CommandManager cm = CommandManager.get();
 
                 CommandSender consoleSender = new CommandSender() {
@@ -80,35 +97,34 @@ public class RewardManager {
                 for (String cmd : reward.commands) {
                     String parsedCmd = cmd.replace("%player%", username).trim();
 
-                    if (parsedCmd.startsWith("/")) {
-                        parsedCmd = parsedCmd.substring(1);
-                    }
-
+                    if (parsedCmd.startsWith("/")) parsedCmd = parsedCmd.substring(1);
                     if (parsedCmd.startsWith("\"") && parsedCmd.endsWith("\"")) {
                         parsedCmd = parsedCmd.substring(1, parsedCmd.length() - 1);
                     }
 
                     try {
-                        logger.info("[RewardDebug] Executing: " + parsedCmd);
+                        logger.info("[RewardDebug] Ejecutando: " + parsedCmd);
                         cm.handleCommand(consoleSender, parsedCmd);
                     } catch (Exception e) {
-                        logger.error("Failed to execute command: " + parsedCmd, e);
+                        logger.error("Error ejecutando comando de recompensa: " + parsedCmd, e);
                     }
                 }
             });
         } else {
-            logger.error("Could not find a valid world to execute reward commands for " + username);
+            logger.error("No se encontro un mundo valido para ejecutar recompensa de " + username);
         }
 
-        // 3. Broadcast Message
-        if (reward.broadcastMessage != null && !reward.broadcastMessage.isEmpty()) {
-            String timeFormatted = PlaytimeAPI.get().formatTime(reward.timeRequirement);
-            String msg = reward.broadcastMessage
-                    .replace("%player%", username)
-                    .replace("%time%", timeFormatted)
-                    .replace("%reward%", reward.id);
-
-            Universe.get().sendMessage(color(msg));
+        // Broadcast solo si esta habilitado en el config y el mensaje no esta vacio
+        PlaytimeConfig config = Playtime.get().getConfigManager().getConfig();
+        if (config.rewards_settings != null && config.rewards_settings.showBroadcast) {
+            if (reward.broadcastMessage != null && !reward.broadcastMessage.isEmpty()) {
+                String timeFormatted = PlaytimeAPI.get().formatTime(reward.timeRequirement);
+                String msg = reward.broadcastMessage
+                        .replace("%player%", username)
+                        .replace("%time%", timeFormatted)
+                        .replace("%reward%", reward.id);
+                Universe.get().sendMessage(color(msg));
+            }
         }
     }
 

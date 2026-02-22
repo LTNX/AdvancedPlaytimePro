@@ -11,6 +11,7 @@ public class PlaytimeConfig {
     public PeriodSettings periods = new PeriodSettings();
     public MessageSettings messages = new MessageSettings();
     public GuiSettings gui = new GuiSettings();
+    public RewardsSettings rewards_settings = new RewardsSettings();
     public List<Reward> rewards = new ArrayList<>();
 
     public void setDefaults() {
@@ -19,6 +20,7 @@ public class PlaytimeConfig {
         if (periods == null) periods = new PeriodSettings();
         if (messages == null) messages = new MessageSettings();
         if (gui == null) gui = new GuiSettings();
+        if (rewards_settings == null) rewards_settings = new RewardsSettings();
         if (rewards == null) rewards = new ArrayList<>();
 
         if (command.topStyle == null) command.topStyle = "text";
@@ -71,7 +73,6 @@ public class PlaytimeConfig {
         public String rewardNotFound = "&cReward '%id%' not found.";
         public String rewardBroadcast = "&6%player% &ehas played for &6%time% &eand claimed the &6%reward% &ereward!";
 
-        // NEW: List Messages
         public String rewardListHeader = "&6--- Server Rewards ---";
         public String rewardListEntry = "&e%id% &7(%period%): &f%status%";
         public String statusClaimed = "&a[CLAIMED]";
@@ -88,5 +89,11 @@ public class PlaytimeConfig {
         public String footerTitle = "YOUR STATS:";
         public String rankPrefix = "Rank: #";
         public String timePrefix = "Time: ";
+    }
+
+    // Configuracion de recompensas
+    public static class RewardsSettings {
+        // Si es false, no se muestra el mensaje global cuando alguien recibe una recompensa
+        public boolean showBroadcast = true;
     }
 }
