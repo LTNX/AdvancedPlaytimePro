@@ -45,6 +45,28 @@ public class SessionListener {
         nameCache.clear();
     }
 
+    // Guarda sesiones sin desconectar a los jugadores
+    public static void autoSaveAllSessions() {
+        for (Map.Entry<UUID, Long> entry : joinTimes.entrySet()) {
+            UUID uuid = entry.getKey();
+            String name = nameCache.getOrDefault(uuid, "Unknown");
+
+            long start = entry.getValue();
+            long duration = System.currentTimeMillis() - start;
+
+            Playtime.get().getService().saveSession(
+                    uuid.toString(),
+                    name,
+                    start,
+                    duration
+            );
+
+            // Reinicia el contador para no contar doble
+            joinTimes.put(uuid, System.currentTimeMillis());
+            historicalCache.put(uuid, historicalCache.getOrDefault(uuid, 0L) + duration);
+        }
+    }
+
     private static void processSessionSave(UUID uuid, String name) {
         if (joinTimes.containsKey(uuid)) {
             long start = joinTimes.get(uuid);

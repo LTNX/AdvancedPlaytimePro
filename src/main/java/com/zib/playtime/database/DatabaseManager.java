@@ -24,9 +24,7 @@ public class DatabaseManager {
 
     private final Logger logger = LoggerFactory.getLogger("Playtime-DB");
 
-    public boolean isMySQL() {
-        return isMySQL;
-    }
+    public boolean isMySQL() { return isMySQL; }
 
     public DatabaseManager(File dataFolder) {
         this.dataFolder = dataFolder;
@@ -53,13 +51,13 @@ public class DatabaseManager {
 
         config.setMaximumPoolSize(10);
         dataSource = new HikariDataSource(config);
-
         createTable();
     }
 
     private void createTable() {
         String sessionsSql;
-        String rewardsSql; // NEW
+        String rewardsSql;
+        String hiddenSql;
 
         if (isMySQL) {
             sessionsSql = "CREATE TABLE IF NOT EXISTS playtime_sessions (" +
@@ -68,16 +66,17 @@ public class DatabaseManager {
                     "username VARCHAR(16)," +
                     "start_time BIGINT," +
                     "duration BIGINT," +
-                    "session_date DATE" +
-                    ")";
+                    "session_date DATE)";
 
-            // NEW: Table to log claimed rewards
             rewardsSql = "CREATE TABLE IF NOT EXISTS playtime_rewards_log (" +
                     "id INT PRIMARY KEY AUTO_INCREMENT," +
                     "uuid VARCHAR(36)," +
                     "reward_id VARCHAR(64)," +
-                    "claim_date DATETIME DEFAULT CURRENT_TIMESTAMP" +
-                    ")";
+                    "claim_date DATETIME DEFAULT CURRENT_TIMESTAMP)";
+
+            hiddenSql = "CREATE TABLE IF NOT EXISTS playtime_hidden (" +
+                    "uuid VARCHAR(36) PRIMARY KEY," +
+                    "username VARCHAR(16))";
         } else {
             sessionsSql = "CREATE TABLE IF NOT EXISTS playtime_sessions (" +
                     "id INTEGER PRIMARY KEY AUTOINCREMENT," +
@@ -85,20 +84,23 @@ public class DatabaseManager {
                     "username VARCHAR(16)," +
                     "start_time BIGINT," +
                     "duration BIGINT," +
-                    "session_date DATE DEFAULT CURRENT_DATE" +
-                    ")";
+                    "session_date DATE DEFAULT CURRENT_DATE)";
 
             rewardsSql = "CREATE TABLE IF NOT EXISTS playtime_rewards_log (" +
                     "id INTEGER PRIMARY KEY AUTOINCREMENT," +
                     "uuid VARCHAR(36)," +
                     "reward_id VARCHAR(64)," +
-                    "claim_date DATETIME DEFAULT CURRENT_TIMESTAMP" +
-                    ")";
+                    "claim_date DATETIME DEFAULT CURRENT_TIMESTAMP)";
+
+            hiddenSql = "CREATE TABLE IF NOT EXISTS playtime_hidden (" +
+                    "uuid VARCHAR(36) PRIMARY KEY," +
+                    "username VARCHAR(16))";
         }
 
         try (Connection conn = dataSource.getConnection(); Statement stmt = conn.createStatement()) {
             stmt.execute(sessionsSql);
             stmt.execute(rewardsSql);
+            stmt.execute(hiddenSql);
             logger.info("Successfully created/verified database tables.");
         } catch (SQLException e) {
             logger.error("Failed to create table: " + e.getMessage(), e);
@@ -114,32 +116,19 @@ public class DatabaseManager {
         if (dataSource != null) dataSource.close();
     }
 
-    // NEW: Check if a reward is already claimed for the current period
     public boolean hasClaimedReward(String uuid, Reward reward) {
         String timeClause = "";
-
-        // Determine SQL logic for periods
         if (isMySQL) {
-            if (reward.period.equalsIgnoreCase("daily")) {
-                timeClause = " AND DATE(claim_date) = CURDATE()";
-            } else if (reward.period.equalsIgnoreCase("weekly")) {
-                timeClause = " AND claim_date >= DATE_SUB(NOW(), INTERVAL 7 DAY)";
-            } else if (reward.period.equalsIgnoreCase("monthly")) {
-                timeClause = " AND claim_date >= DATE_SUB(NOW(), INTERVAL 1 MONTH)";
-            }
+            if (reward.period.equalsIgnoreCase("daily")) timeClause = " AND DATE(claim_date) = CURDATE()";
+            else if (reward.period.equalsIgnoreCase("weekly")) timeClause = " AND claim_date >= DATE_SUB(NOW(), INTERVAL 7 DAY)";
+            else if (reward.period.equalsIgnoreCase("monthly")) timeClause = " AND claim_date >= DATE_SUB(NOW(), INTERVAL 1 MONTH)";
         } else {
-            // SQLite
-            if (reward.period.equalsIgnoreCase("daily")) {
-                timeClause = " AND date(claim_date) = date('now')";
-            } else if (reward.period.equalsIgnoreCase("weekly")) {
-                timeClause = " AND date(claim_date) >= date('now', '-7 days')";
-            } else if (reward.period.equalsIgnoreCase("monthly")) {
-                timeClause = " AND date(claim_date) >= date('now', '-1 month')";
-            }
+            if (reward.period.equalsIgnoreCase("daily")) timeClause = " AND date(claim_date) = date('now')";
+            else if (reward.period.equalsIgnoreCase("weekly")) timeClause = " AND date(claim_date) >= date('now', '-7 days')";
+            else if (reward.period.equalsIgnoreCase("monthly")) timeClause = " AND date(claim_date) >= date('now', '-1 month')";
         }
 
         String query = "SELECT id FROM playtime_rewards_log WHERE uuid = ? AND reward_id = ?" + timeClause;
-
         try (Connection conn = getConnection(); PreparedStatement ps = conn.prepareStatement(query)) {
             ps.setString(1, uuid);
             ps.setString(2, reward.id);
@@ -148,11 +137,10 @@ public class DatabaseManager {
             }
         } catch (SQLException e) {
             logger.error("Error checking reward claim", e);
-            return true; // Fail safe: assume claimed to prevent exploit on error
+            return true;
         }
     }
 
-    // NEW: Log a claim
     public void logRewardClaim(String uuid, String rewardId) {
         String sql = "INSERT INTO playtime_rewards_log (uuid, reward_id) VALUES (?, ?)";
         try (Connection conn = getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -161,6 +149,55 @@ public class DatabaseManager {
             ps.executeUpdate();
         } catch (SQLException e) {
             logger.error("Error logging reward claim", e);
+        }
+    }
+
+    // Ocultar jugador del leaderboard por nombre de usuario
+    public boolean hidePlayer(String username) {
+        String findUuid = "SELECT uuid FROM playtime_sessions WHERE username = ? LIMIT 1";
+        try (Connection conn = getConnection(); PreparedStatement ps = conn.prepareStatement(findUuid)) {
+            ps.setString(1, username);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return false; // jugador no encontrado
+                String uuid = rs.getString("uuid");
+                String insertSql = "INSERT OR REPLACE INTO playtime_hidden (uuid, username) VALUES (?, ?)";
+                if (isMySQL) insertSql = "INSERT IGNORE INTO playtime_hidden (uuid, username) VALUES (?, ?)";
+                try (PreparedStatement ps2 = conn.prepareStatement(insertSql)) {
+                    ps2.setString(1, uuid);
+                    ps2.setString(2, username);
+                    ps2.executeUpdate();
+                }
+                return true;
+            }
+        } catch (SQLException e) {
+            logger.error("Error hiding player", e);
+            return false;
+        }
+    }
+
+    // Mostrar jugador de nuevo en el leaderboard
+    public boolean showPlayer(String username) {
+        String sql = "DELETE FROM playtime_hidden WHERE username = ?";
+        try (Connection conn = getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, username);
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            logger.error("Error showing player", e);
+            return false;
+        }
+    }
+
+    // Verificar si un UUID está oculto
+    public boolean isHidden(String uuid) {
+        String sql = "SELECT uuid FROM playtime_hidden WHERE uuid = ?";
+        try (Connection conn = getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, uuid);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        } catch (SQLException e) {
+            logger.error("Error checking hidden status", e);
+            return false;
         }
     }
 }

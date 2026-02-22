@@ -65,11 +65,8 @@ public class PlaytimeService {
         Map<String, Long> all = getTopPlayers(type, 1000);
         int rank = 1;
         long myTime = getPlaytime(uuid, type);
-
         for (Long time : all.values()) {
-            if (time > myTime) {
-                rank++;
-            }
+            if (time > myTime) rank++;
         }
         return rank;
     }
@@ -85,8 +82,7 @@ public class PlaytimeService {
         String where = dateFilter.isEmpty() ? "" : "WHERE " + dateFilter.substring(4) + " ";
 
         String query = "SELECT uuid, username, SUM(duration) as total FROM playtime_sessions " +
-                where +
-                "GROUP BY uuid";
+                where + "GROUP BY uuid";
 
         try (Connection conn = db.getConnection()) {
             PreparedStatement ps = conn.prepareStatement(query);
@@ -95,6 +91,9 @@ public class PlaytimeService {
                 String uuid = rs.getString("uuid");
                 String name = rs.getString("username");
                 long total = rs.getLong("total");
+
+                // Saltar jugadores ocultos del leaderboard
+                if (db.isHidden(uuid)) continue;
 
                 try {
                     total += SessionListener.getCurrentSession(UUID.fromString(uuid));
@@ -117,22 +116,17 @@ public class PlaytimeService {
 
     private String getDateFilter(String type) {
         if (isMySQL) {
-            if (type.equalsIgnoreCase("daily")) {
-                return "AND session_date = CURDATE() ";
-            } else if (type.equalsIgnoreCase("weekly")) {
-                return "AND session_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) ";
-            } else if (type.equalsIgnoreCase("monthly")) {
-                return "AND session_date >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH) ";
-            }
+            if (type.equalsIgnoreCase("daily")) return "AND session_date = CURDATE() ";
+            else if (type.equalsIgnoreCase("weekly")) return "AND session_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) ";
+            else if (type.equalsIgnoreCase("monthly")) return "AND session_date >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH) ";
         } else {
-            if (type.equalsIgnoreCase("daily")) {
-                return "AND session_date = date('now') ";
-            } else if (type.equalsIgnoreCase("weekly")) {
-                return "AND session_date >= date('now', '-7 days') ";
-            } else if (type.equalsIgnoreCase("monthly")) {
-                return "AND session_date >= date('now', '-1 month') ";
-            }
+            if (type.equalsIgnoreCase("daily")) return "AND session_date = date('now') ";
+            else if (type.equalsIgnoreCase("weekly")) return "AND session_date >= date('now', '-7 days') ";
+            else if (type.equalsIgnoreCase("monthly")) return "AND session_date >= date('now', '-1 month') ";
         }
         return "";
     }
+
+    // Expone el DatabaseManager para uso externo
+    public DatabaseManager getDb() { return db; }
 }

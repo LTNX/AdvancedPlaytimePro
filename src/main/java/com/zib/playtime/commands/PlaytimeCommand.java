@@ -33,6 +33,7 @@ public class PlaytimeCommand extends AbstractPlayerCommand {
         addUsageVariant(new DoubleArgCommand(name));
         addUsageVariant(new RemoveRewardCommand(name));
         addUsageVariant(new AdminRewardCommand(name));
+        addUsageVariant(new HideShowCommand(name)); // NUEVO
     }
 
     @Override
@@ -128,6 +129,54 @@ public class PlaytimeCommand extends AbstractPlayerCommand {
         }
     }
 
+    // NUEVO: Comando para ocultar/mostrar jugadores del leaderboard
+    private static class HideShowCommand extends AbstractPlayerCommand {
+        private final RequiredArg<String> arg1; // "admin"
+        private final RequiredArg<String> arg2; // "hide" o "show"
+        private final RequiredArg<String> arg3; // nombre del jugador
+
+        public HideShowCommand(String name) {
+            super(name);
+            this.arg1 = withRequiredArg("admin", "Admin", ArgTypes.STRING);
+            this.arg2 = withRequiredArg("action", "hide/show", ArgTypes.STRING);
+            this.arg3 = withRequiredArg("player", "Player Name", ArgTypes.STRING);
+        }
+
+        @Override protected boolean canGeneratePermission() { return false; }
+
+        @Override
+        protected void execute(CommandContext ctx, Store<EntityStore> store, Ref<EntityStore> ref,
+                               PlayerRef player, World world) {
+            if (!ctx.get(arg1).equalsIgnoreCase("admin")) return;
+
+            String action = ctx.get(arg2).toLowerCase();
+            if (!action.equals("hide") && !action.equals("show")) return;
+
+            if (!ctx.sender().hasPermission("playtime.admin")) {
+                ctx.sendMessage(color("&cNo tienes permiso para hacer esto."));
+                return;
+            }
+
+            String targetName = ctx.get(arg3);
+
+            if (action.equals("hide")) {
+                boolean success = Playtime.get().getService().getDb().hidePlayer(targetName);
+                if (success) {
+                    ctx.sendMessage(color("&a" + targetName + " &7ha sido ocultado del leaderboard."));
+                } else {
+                    ctx.sendMessage(color("&cJugador &f" + targetName + " &cno encontrado. Debe haber jugado en el servidor al menos una vez."));
+                }
+            } else {
+                boolean success = Playtime.get().getService().getDb().showPlayer(targetName);
+                if (success) {
+                    ctx.sendMessage(color("&a" + targetName + " &7ahora es visible en el leaderboard."));
+                } else {
+                    ctx.sendMessage(color("&cJugador &f" + targetName + " &cno estaba oculto."));
+                }
+            }
+        }
+    }
+
     private static class ActionCommand extends AbstractPlayerCommand {
         private final RequiredArg<String> arg1;
 
@@ -144,26 +193,17 @@ public class PlaytimeCommand extends AbstractPlayerCommand {
             PlaytimeConfig config = Playtime.get().getConfigManager().getConfig();
             PlaytimeConfig.PeriodSettings periods = config.periods;
 
-            if (arg.equalsIgnoreCase("help")) {
-                showHelp(ctx);
-                return;
-            }
-            if (arg.equalsIgnoreCase("rewards")) {
-                listUserRewards(ctx, player, config);
-                return;
-            }
+            if (arg.equalsIgnoreCase("help")) { showHelp(ctx); return; }
+            if (arg.equalsIgnoreCase("rewards")) { listUserRewards(ctx, player, config); return; }
             if (arg.equalsIgnoreCase("admin")) {
                 if (!ctx.sender().hasPermission("playtime.admin")) {
-                    ctx.sendMessage(color(config.messages.noPermission));
-                    return;
+                    ctx.sendMessage(color(config.messages.noPermission)); return;
                 }
-                showAdminGuide(ctx);
-                return;
+                showAdminGuide(ctx); return;
             }
             if (arg.equalsIgnoreCase("menu") || arg.equalsIgnoreCase("gui")) {
                 if (!ctx.sender().hasPermission("playtime.gui")) {
-                    ctx.sendMessage(color(config.messages.noPermission));
-                    return;
+                    ctx.sendMessage(color(config.messages.noPermission)); return;
                 }
                 if (ctx.sender() instanceof Player senderPlayer) {
                     senderPlayer.getPageManager().openCustomPage(ref, store, new PlaytimeLeaderboardGui(player));
@@ -172,8 +212,7 @@ public class PlaytimeCommand extends AbstractPlayerCommand {
             }
             if (arg.equalsIgnoreCase(periods.reload)) {
                 if (!ctx.sender().hasPermission("playtime.reload")) {
-                    ctx.sendMessage(color(config.messages.reloadNoPermission));
-                    return;
+                    ctx.sendMessage(color(config.messages.reloadNoPermission)); return;
                 }
                 try {
                     Playtime.get().getConfigManager().load();
@@ -196,8 +235,7 @@ public class PlaytimeCommand extends AbstractPlayerCommand {
             }
             if (arg.equalsIgnoreCase(periods.daily) || arg.equalsIgnoreCase(periods.weekly) ||
                     arg.equalsIgnoreCase(periods.monthly) || arg.equalsIgnoreCase(periods.all)) {
-                showTop(ctx, player, arg);
-                return;
+                showTop(ctx, player, arg); return;
             }
 
             ctx.sendMessage(color("&cUnknown command. Try /playtime help"));
@@ -214,6 +252,8 @@ public class PlaytimeCommand extends AbstractPlayerCommand {
                 ctx.sendMessage(color("&c/playtime admin listRewards &7- List configured rewards"));
                 ctx.sendMessage(color("&c/playtime admin addReward &7- Add a new reward"));
                 ctx.sendMessage(color("&c/playtime admin removeReward <id> &7- Remove a reward"));
+                ctx.sendMessage(color("&c/playtime admin hide <jugador> &7- Ocultar del leaderboard"));
+                ctx.sendMessage(color("&c/playtime admin show <jugador> &7- Mostrar en leaderboard"));
                 ctx.sendMessage(color("&c/playtime reload &7- Reload config"));
             }
         }
@@ -226,29 +266,19 @@ public class PlaytimeCommand extends AbstractPlayerCommand {
             ctx.sendMessage(color("&7- &eperiod&7: daily, weekly, monthly, or all"));
             ctx.sendMessage(color("&7- &etime&7: 30m, 1h, 1d, 10s"));
             ctx.sendMessage(color("&7- &ecommand&7: The console command. Use &f%player% &7for username."));
-            ctx.sendMessage(color("&7  Example: &f/playtime admin addReward daily_gold daily 1h \"give %player% gold 10\""));
         }
 
         private void listUserRewards(CommandContext ctx, PlayerRef player, PlaytimeConfig cfg) {
             ctx.sendMessage(color(cfg.messages.rewardListHeader));
-
             String uuid = player.getUuid().toString();
-
             for (Reward r : cfg.rewards) {
-                // FIXED: Check claim status using RewardManager
                 boolean claimed = Playtime.get().getRewardManager().isClaimed(uuid, r);
                 long playtime = PlaytimeAPI.get().getPlaytime(player.getUuid(), r.period);
                 boolean eligible = playtime >= r.timeRequirement;
-
                 String status;
-                if (claimed) {
-                    status = cfg.messages.statusClaimed;
-                } else if (eligible) {
-                    status = cfg.messages.statusAvailable;
-                } else {
-                    status = cfg.messages.statusLocked;
-                }
-
+                if (claimed) status = cfg.messages.statusClaimed;
+                else if (eligible) status = cfg.messages.statusAvailable;
+                else status = cfg.messages.statusLocked;
                 String line = cfg.messages.rewardListEntry
                         .replace("%id%", r.id)
                         .replace("%period%", r.period)
@@ -273,10 +303,7 @@ public class PlaytimeCommand extends AbstractPlayerCommand {
             String a1 = ctx.get(arg1);
             String a2 = ctx.get(arg2);
 
-            if (a1.equalsIgnoreCase("top")) {
-                showTop(ctx, player, a2.toLowerCase());
-                return;
-            }
+            if (a1.equalsIgnoreCase("top")) { showTop(ctx, player, a2.toLowerCase()); return; }
 
             if (a1.equalsIgnoreCase("admin") && a2.equalsIgnoreCase("listRewards")) {
                 if (!ctx.sender().hasPermission("playtime.admin")) {
@@ -313,16 +340,12 @@ public class PlaytimeCommand extends AbstractPlayerCommand {
         protected void execute(CommandContext ctx, Store<EntityStore> store, Ref<EntityStore> ref, PlayerRef player, World world) {
             if (!ctx.get(arg1).equalsIgnoreCase("admin")) return;
             if (!ctx.get(arg2).equalsIgnoreCase("removeReward")) return;
-
             if (!ctx.sender().hasPermission("playtime.admin")) {
                 ctx.sendMessage(color("&cNo permission.")); return;
             }
-
             String id = ctx.get(idArg);
             PlaytimeConfig config = Playtime.get().getConfigManager().getConfig();
-
             boolean removed = config.rewards.removeIf(r -> r.id.equals(id));
-
             if (removed) {
                 Playtime.get().getConfigManager().save();
                 ctx.sendMessage(color(config.messages.rewardRemoved.replace("%id%", id)));
@@ -355,13 +378,9 @@ public class PlaytimeCommand extends AbstractPlayerCommand {
         @Override
         protected void execute(CommandContext ctx, Store<EntityStore> store, Ref<EntityStore> ref, PlayerRef player, World world) {
             if (!ctx.sender().hasPermission("playtime.admin")) {
-                ctx.sendMessage(color("&cYou do not have permission."));
-                return;
+                ctx.sendMessage(color("&cYou do not have permission.")); return;
             }
-
-            if (!ctx.get(arg1).equalsIgnoreCase("admin") || !ctx.get(arg2).equalsIgnoreCase("addReward")) {
-                return;
-            }
+            if (!ctx.get(arg1).equalsIgnoreCase("admin") || !ctx.get(arg2).equalsIgnoreCase("addReward")) return;
 
             String id = ctx.get(idArg);
             String period = ctx.get(periodArg).toLowerCase();
@@ -370,20 +389,16 @@ public class PlaytimeCommand extends AbstractPlayerCommand {
 
             long ms = parseTime(timeStr);
             if (ms <= 0) {
-                ctx.sendMessage(color("&cInvalid time format. Use 30m, 1h, 1d."));
-                return;
+                ctx.sendMessage(color("&cInvalid time format. Use 30m, 1h, 1d.")); return;
             }
 
             List<String> cmds = new ArrayList<>();
             cmds.add(cmdToRun);
-
             String broadcast = "&6%player% &ehas played for &6%time% &eand claimed the &6" + id + " &ereward!";
             Reward newReward = new Reward(id, period, ms, cmds, broadcast);
-
             PlaytimeConfig config = Playtime.get().getConfigManager().getConfig();
             config.rewards.add(newReward);
             Playtime.get().getConfigManager().save();
-
             ctx.sendMessage(color(config.messages.rewardAdded.replace("%id%", id)));
         }
 
@@ -400,9 +415,7 @@ public class PlaytimeCommand extends AbstractPlayerCommand {
                     case "d": return val * 24 * 60 * 60 * 1000;
                     default: return val;
                 }
-            } catch (Exception e) {
-                return -1;
-            }
+            } catch (Exception e) { return -1; }
         }
     }
 }

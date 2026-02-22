@@ -26,7 +26,7 @@ public class Playtime extends JavaPlugin {
     private ConfigManager configManager;
     private DatabaseManager db;
     private PlaytimeService service;
-    private RewardManager rewardManager; // NEW
+    private RewardManager rewardManager;
 
     public Playtime(@Nonnull JavaPluginInit init) {
         super(init);
@@ -48,7 +48,6 @@ public class Playtime extends JavaPlugin {
         db.init();
         service = new PlaytimeService(db);
 
-        // NEW: Init Reward Manager
         rewardManager = new RewardManager(db);
 
         String cmdName = cfg.command.name;
@@ -58,7 +57,7 @@ public class Playtime extends JavaPlugin {
         this.getEventRegistry().registerGlobal(PlayerConnectEvent.class, SessionListener::onJoin);
         this.getEventRegistry().registerGlobal(PlayerDisconnectEvent.class, SessionListener::onQuit);
 
-        // NEW: Schedule Reward Checker (Runs every 1 minute)
+        // Reward checker: cada 1 minuto
         HytaleServer.SCHEDULED_EXECUTOR.scheduleAtFixedRate(() -> {
             try {
                 rewardManager.checkRewards();
@@ -66,6 +65,16 @@ public class Playtime extends JavaPlugin {
                 logger.error("Error in reward checker task", e);
             }
         }, 1, 1, TimeUnit.MINUTES);
+
+        // Auto-guardado: cada 5 minutos para no perder datos si el servidor se cae
+        HytaleServer.SCHEDULED_EXECUTOR.scheduleAtFixedRate(() -> {
+            try {
+                SessionListener.autoSaveAllSessions();
+                logger.info("Auto-guardado de sesiones completado.");
+            } catch (Exception e) {
+                logger.error("Error en auto-guardado de sesiones", e);
+            }
+        }, 5, 5, TimeUnit.MINUTES);
 
         logger.info("Playtime loaded successfully. Main command: /" + cmdName);
     }
